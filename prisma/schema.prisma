@@ -1,0 +1,261 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Role {
+  id          BigInt    @id @default(autoincrement())
+  name        String    @unique @db.VarChar(50)
+  description String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp()
+  updated_at  DateTime? @updatedAt @db.Timestamp()
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id         BigInt    @id @default(autoincrement())
+  role_id    BigInt
+  name       String    @db.VarChar(150)
+  email      String    @unique @db.VarChar(150)
+  password   String    @db.VarChar(255)
+  is_active  Boolean   @default(true)
+  created_at DateTime? @default(now()) @db.Timestamp()
+  updated_at DateTime? @updatedAt @db.Timestamp()
+
+  role             Role             @relation(fields: [role_id], references: [id])
+  data_validations DataValidation[]
+
+  @@map("users")
+}
+
+model FarmCategory {
+  id          BigInt    @id @default(autoincrement())
+  name        String    @unique @db.VarChar(100)
+  description String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp()
+  updated_at  DateTime? @updatedAt @db.Timestamp()
+
+  farms Farm[]
+
+  @@map("farm_categories")
+}
+
+model FarmScale {
+  id          BigInt    @id @default(autoincrement())
+  name        String    @unique @db.VarChar(50)
+  description String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp()
+  updated_at  DateTime? @updatedAt @db.Timestamp()
+
+  farms Farm[]
+
+  @@map("farm_scales")
+}
+
+model LivestockCategory {
+  id          BigInt    @id @default(autoincrement())
+  name        String    @unique @db.VarChar(100)
+  description String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp()
+  updated_at  DateTime? @updatedAt @db.Timestamp()
+
+  livestock_types LivestockType[]
+  livestock       Livestock[]
+
+  @@map("livestock_categories")
+}
+
+model LivestockType {
+  id          BigInt    @id @default(autoincrement())
+  category_id BigInt
+  name        String    @db.VarChar(100)
+  description String?   @db.Text
+  created_at  DateTime? @default(now()) @db.Timestamp()
+  updated_at  DateTime? @updatedAt @db.Timestamp()
+
+  category           LivestockCategory  @relation(fields: [category_id], references: [id])
+  livestock_subtypes LivestockSubtype[]
+  livestock          Livestock[]
+
+  @@unique([category_id, name])
+  @@map("livestock_types")
+}
+
+model LivestockSubtype {
+  id                BigInt    @id @default(autoincrement())
+  livestock_type_id BigInt
+  name              String    @db.VarChar(100)
+  description       String?   @db.Text
+  created_at        DateTime? @default(now()) @db.Timestamp()
+  updated_at        DateTime? @updatedAt @db.Timestamp()
+
+  livestock_type LivestockType @relation(fields: [livestock_type_id], references: [id])
+  livestock      Livestock[]
+
+  @@unique([livestock_type_id, name])
+  @@map("livestock_subtypes")
+}
+
+model District {
+  id         BigInt                                       @id @default(autoincrement())
+  name       String                                       @unique @db.VarChar(100)
+  code       String?                                      @unique @db.VarChar(20)
+  geom       Unsupported("geometry(MultiPolygon, 4326)")?
+  created_at DateTime?                                    @default(now()) @db.Timestamp()
+  updated_at DateTime?                                    @updatedAt @db.Timestamp()
+
+  villages     Village[]
+  farms        Farm[]
+  sdss_results SdssResult[]
+
+  @@map("districts")
+}
+
+model Village {
+  id          BigInt                                       @id @default(autoincrement())
+  district_id BigInt
+  name        String                                       @db.VarChar(100)
+  code        String?                                      @unique @db.VarChar(20)
+  geom        Unsupported("geometry(MultiPolygon, 4326)")?
+  created_at  DateTime?                                    @default(now()) @db.Timestamp()
+  updated_at  DateTime?                                    @updatedAt @db.Timestamp()
+
+  district District @relation(fields: [district_id], references: [id])
+  farms    Farm[]
+
+  @@unique([district_id, name])
+  @@map("villages")
+}
+
+model Farm {
+  id               BigInt                                @id @default(autoincrement())
+  source_farm_id   BigInt?                               @unique
+  farm_name        String?                               @db.VarChar(150)
+  owner_name       String?                               @db.VarChar(150)
+  address          String?                               @db.Text
+  phone            String?                               @db.VarChar(30)
+  farm_category_id BigInt?
+  farm_scale_id    BigInt?
+  district_id      BigInt?
+  village_id       BigInt?
+  notes            String?                               @db.Text
+  latitude         Decimal?                              @db.Decimal(10, 7)
+  longitude        Decimal?                              @db.Decimal(10, 7)
+  geom             Unsupported("geometry(Point, 4326)")?
+  created_at       DateTime?                             @default(now()) @db.Timestamp()
+  updated_at       DateTime?                             @updatedAt @db.Timestamp()
+
+  farm_category FarmCategory? @relation(fields: [farm_category_id], references: [id])
+  farm_scale    FarmScale?    @relation(fields: [farm_scale_id], references: [id])
+  district      District?     @relation(fields: [district_id], references: [id])
+  village       Village?      @relation(fields: [village_id], references: [id])
+  livestock     Livestock[]
+  farm_photos   FarmPhoto[]
+
+  @@map("farms")
+}
+
+model Livestock {
+  id                    BigInt    @id @default(autoincrement())
+  source_livestock_id   BigInt?   @unique
+  farm_id               BigInt
+  livestock_category_id BigInt
+  livestock_type_id     BigInt
+  livestock_subtype_id  BigInt?
+  population            Int       @default(0)
+  created_at            DateTime? @default(now()) @db.Timestamp()
+  updated_at            DateTime? @updatedAt @db.Timestamp()
+
+  farm               Farm              @relation(fields: [farm_id], references: [id])
+  livestock_category LivestockCategory @relation(fields: [livestock_category_id], references: [id])
+  livestock_type     LivestockType     @relation(fields: [livestock_type_id], references: [id])
+  livestock_subtype  LivestockSubtype? @relation(fields: [livestock_subtype_id], references: [id])
+
+  @@map("livestock")
+}
+
+model DataValidation {
+  id           BigInt    @id @default(autoincrement())
+  entity_type  String    @db.VarChar(50)
+  entity_id    BigInt
+  status       String    @db.VarChar(30)
+  notes        String?   @db.Text
+  validated_by BigInt?
+  validated_at DateTime? @db.Timestamp()
+  created_at   DateTime? @default(now()) @db.Timestamp()
+  updated_at   DateTime? @updatedAt @db.Timestamp()
+
+  validator User? @relation(fields: [validated_by], references: [id])
+
+  @@map("data_validations")
+}
+
+model SdssCriterion {
+  id            BigInt    @id @default(autoincrement())
+  name          String    @unique @db.VarChar(100)
+  description   String?   @db.Text
+  criteria_type String    @db.VarChar(20)
+  weight        Decimal?  @db.Decimal(8, 4)
+  is_active     Boolean   @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamp()
+  updated_at    DateTime? @updatedAt @db.Timestamp()
+
+  sdss_weights SdssWeight[]
+
+  @@map("sdss_criteria")
+}
+
+model SdssWeight {
+  id          BigInt    @id @default(autoincrement())
+  criteria_id BigInt
+  category    String?   @db.VarChar(100)
+  min_value   Decimal?  @db.Decimal(12, 4)
+  max_value   Decimal?  @db.Decimal(12, 4)
+  score       Decimal?  @db.Decimal(8, 4)
+  created_at  DateTime? @default(now()) @db.Timestamp()
+  updated_at  DateTime? @updatedAt @db.Timestamp()
+
+  criteria SdssCriterion @relation(fields: [criteria_id], references: [id])
+
+  @@map("sdss_weights")
+}
+
+model SdssResult {
+  id             BigInt    @id @default(autoincrement())
+  district_id    BigInt?
+  score          Decimal?  @db.Decimal(12, 4)
+  rank           Int?
+  recommendation String?   @db.VarChar(50)
+  explanation    String?   @db.Text
+  created_at     DateTime? @default(now()) @db.Timestamp()
+  updated_at     DateTime? @updatedAt @db.Timestamp()
+
+  district District? @relation(fields: [district_id], references: [id])
+
+  @@map("sdss_results")
+}
+
+model FarmPhoto {
+  id         BigInt    @id @default(autoincrement())
+  farm_id    BigInt
+  file_path  String    @db.VarChar(500)
+  caption    String?   @db.VarChar(255)
+  is_primary Boolean   @default(false)
+  sort_order Int       @default(0)
+  created_at DateTime? @default(now()) @db.Timestamp()
+  updated_at DateTime? @updatedAt @db.Timestamp()
+
+  farm Farm @relation(fields: [farm_id], references: [id])
+
+  @@map("farm_photos")
+}

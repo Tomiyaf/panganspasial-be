@@ -1,0 +1,231 @@
+Table roles {
+  id bigint [pk, increment]
+  name varchar(50) [not null, unique]
+  description text
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table users {
+  id bigint [pk, increment]
+  role_id bigint [not null, ref: > roles.id]
+
+  name varchar(150) [not null]
+  email varchar(150) [not null, unique]
+  password varchar(255) [not null]
+
+  is_active boolean [not null, default: true]
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+
+Table farm_categories {
+  id bigint [pk, increment]
+  name varchar(100) [not null, unique]
+  description text
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table farm_scales {
+  id bigint [pk, increment]
+  name varchar(50) [not null, unique]
+  description text
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+
+Table livestock_categories {
+  id bigint [pk, increment]
+  name varchar(100) [not null, unique]
+  description text
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table livestock_types {
+  id bigint [pk, increment]
+  category_id bigint [not null, ref: > livestock_categories.id]
+
+  name varchar(100) [not null]
+  description text
+
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (category_id, name) [unique]
+  }
+}
+
+Table livestock_subtypes {
+  id bigint [pk, increment]
+  livestock_type_id bigint [not null, ref: > livestock_types.id]
+
+  name varchar(100) [not null]
+  description text
+
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (livestock_type_id, name) [unique]
+  }
+}
+
+
+Table districts {
+  id bigint [pk, increment]
+
+  name varchar(100) [not null, unique]
+  code varchar(20) [unique]
+
+  geom geometry(MultiPolygon, 4326)
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table villages {
+  id bigint [pk, increment]
+  district_id bigint [not null, ref: > districts.id]
+
+  name varchar(100) [not null]
+  code varchar(20) [unique]
+
+  geom geometry(MultiPolygon, 4326)
+
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (district_id, name) [unique]
+  }
+}
+
+
+Table farms {
+  id bigint [pk, increment]
+
+  source_farm_id bigint [unique]
+
+  farm_name varchar(150)
+  owner_name varchar(150)
+  address text
+  phone varchar(30)
+
+  farm_category_id bigint [ref: > farm_categories.id]
+  farm_scale_id bigint [ref: > farm_scales.id]
+
+  district_id bigint [ref: > districts.id]
+  village_id bigint [ref: > villages.id]
+
+  notes text
+
+  latitude decimal(10, 7)
+  longitude decimal(10, 7)
+
+  geom geometry(Point, 4326)
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+
+Table livestock {
+  id bigint [pk, increment]
+
+  source_livestock_id bigint [unique]
+
+  farm_id bigint [not null, ref: > farms.id]
+
+  livestock_category_id bigint [not null, ref: > livestock_categories.id]
+  livestock_type_id bigint [not null, ref: > livestock_types.id]
+  livestock_subtype_id bigint [ref: > livestock_subtypes.id]
+
+  population int [not null, default: 0]
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+
+Table data_validations {
+  id bigint [pk, increment]
+
+  entity_type varchar(50) [not null]
+  entity_id bigint [not null]
+
+  status varchar(30) [not null]
+  notes text
+
+  validated_by bigint [ref: > users.id]
+  validated_at timestamp
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+
+Table sdss_criteria {
+  id bigint [pk, increment]
+
+  name varchar(100) [not null, unique]
+  description text
+
+  criteria_type varchar(20) [not null]
+  weight decimal(8, 4)
+  is_active boolean [not null, default: true]
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table sdss_weights {
+  id bigint [pk, increment]
+
+  criteria_id bigint [not null, ref: > sdss_criteria.id]
+
+  category varchar(100)
+  min_value decimal(12, 4)
+  max_value decimal(12, 4)
+  score decimal(8, 4)
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table sdss_results {
+  id bigint [pk, increment]
+
+  district_id bigint [ref: > districts.id]
+
+  score decimal(12, 4)
+  rank int
+  recommendation varchar(50)
+  explanation text
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table farm_photos {
+  id bigint [pk, increment]
+
+  farm_id bigint [not null, ref: > farms.id]
+
+  file_path varchar(500) [not null]
+  caption varchar(255)
+  is_primary boolean [not null, default: false]
+  sort_order int [not null, default: 0]
+
+  created_at timestamp
+  updated_at timestamp
+}
