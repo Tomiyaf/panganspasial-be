@@ -101,6 +101,19 @@ describe("Milestone D, E, F — WebGIS Spatial, Statistics, SDSS & Documentation
       expect(res.body.success).toBe(true);
       expect(res.body.data.length).toBeGreaterThan(0);
     });
+
+    it("POST /api/admin/sdss/criteria should reject invalid criteria_type", async () => {
+      const res = await request(app)
+        .post("/api/admin/sdss/criteria")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          name: "Test Kriteria Invalid",
+          criteria_type: "invalid_type",
+          weight: 0.2,
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
   });
 
   // ==================== ADMIN MANAGEMENT & SUMMARY (TASK-052, 053) ====================
