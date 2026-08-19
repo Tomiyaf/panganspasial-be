@@ -166,5 +166,50 @@ describe("Milestone C — Authentication, Master Data & Core Management API Test
       expect(res.status).toBe(200);
       expect(res.body.data.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("POST /api/admin/validations should reject invalid status enum", async () => {
+      const res = await request(app)
+        .post("/api/admin/validations")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          entity_type: "farm",
+          entity_id: "1",
+          status: "unknown_status",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
+  });
+
+  // ==================== USER MANAGEMENT & SECURITY VALIDATION TESTS ====================
+  describe("User Management & Input Validation Hardening", () => {
+    it("POST /api/admin/users should reject invalid email format", async () => {
+      const res = await request(app)
+        .post("/api/admin/users")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          name: "Test User",
+          email: "invalid-email-format",
+          password: "password123",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("POST /api/admin/users should reject short password (< 6 chars)", async () => {
+      const res = await request(app)
+        .post("/api/admin/users")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          name: "Test User",
+          email: "valid@panganspasial.id",
+          password: "123",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
   });
 });
