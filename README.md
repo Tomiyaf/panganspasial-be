@@ -18,7 +18,7 @@ Dibangun dengan arsitektur **Layered Architecture (N-Tier)** menggunakan **Node.
 - 📋 **Workflow Validasi Data Survey**: Manajemen status verifikasi data lapangan (*Pending*, *Valid*, *Rejected*).
 - 🚜 **Automated GPKG Importer**: Pipeline otomatis untuk mem-parsing dan mengimpor file `peternakan.gpkg` (GeoPackage) langsung ke database spasial PostGIS.
 - 📖 **Dokumentasi Interaktif OpenAPI 3.0 / Swagger UI**: Antarmuka visual untuk eksplorasi dan pengujian seluruh endpoint API di `/api/docs`.
-- 🧪 **Automated Test Suite**: Pengujian unit dan integrasi menyeluruh menggunakan Vitest dan Supertest (31/31 tests passing).
+- 🧪 **Automated Test Suite**: Pengujian unit dan integrasi menyeluruh menggunakan Vitest dan Supertest (35/35 tests passing).
 
 ---
 
@@ -216,11 +216,11 @@ npm run test:watch
 ```text
 ✓ tests/health.test.js (2 tests)
 ✓ tests/import.test.js (5 tests)
-✓ tests/admin_and_core.test.js (13 tests)
-✓ tests/spatial_and_sdss.test.js (11 tests)
+✓ tests/admin_and_core.test.js (16 tests)
+✓ tests/spatial_and_sdss.test.js (12 tests)
 
 Test Files  4 passed (4)
-     Tests  31 passed (31)
+     Tests  35 passed (35)
 ```
 
 ---
