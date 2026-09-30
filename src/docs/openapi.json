@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Panganspasial.id Backend REST & WebGIS API",
-    "description": "Dokumentasi lengkap REST API dan GeoJSON WebGIS untuk Sistem Informasi Spasial Sektor Peternakan Kabupaten Pringsewu.",
+    "description": "Dokumentasi lengkap REST API dan GeoJSON WebGIS untuk Sistem Informasi Spasial Sektor Peternakan Kabupaten Pringsewu. Dokumen ini dirancang dengan skema input, respon terstruktur, dan envelope data yang siap dikonsumsi oleh Frontend Developer dan AI Agent.",
     "version": "1.0.0"
   },
   "servers": [
@@ -21,9 +21,9 @@
     { "name": "Farms Management (Admin CRUD)", "description": "Kelola data peternakan & koordinat spasial PostGIS" },
     { "name": "Livestock Management (Admin CRUD)", "description": "Kelola komoditas ternak dan populasi" },
     { "name": "Farm Photos", "description": "Upload foto peternakan dan set primary photo" },
-    { "name": "Spatial WebGIS (GeoJSON)", "description": "Endpoint GeoJSON FeatureCollection untuk peta Leaflet" },
+    { "name": "Spatial WebGIS (GeoJSON)", "description": "Endpoint GeoJSON FeatureCollection (RFC 7946) untuk peta Leaflet" },
     { "name": "Dashboard Statistics", "description": "KPI ringkasan dan agregasi statistik peternakan" },
-    { "name": "SDSS Decision Support", "description": "Sistem pendukung keputusan rekomendasi wilayah" },
+    { "name": "SDSS Decision Support", "description": "Sistem pendukung keputusan rekomendasi wilayah (Metode SAW)" },
     { "name": "Master Data (Farm & Scale)", "description": "Kategori dan skala usaha peternakan" },
     { "name": "Master Data (Livestock Taxonomy)", "description": "Kategori, jenis, dan sub-jenis ternak" },
     { "name": "Data Validations", "description": "Workflow validasi survey lapangan (Pending/Valid/Rejected)" },
@@ -35,17 +35,53 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "Masukkan JWT token yang diperoleh dari endpoint POST /auth/login"
+        "description": "Masukkan JWT token yang diperoleh dari endpoint POST /auth/login (Format: Bearer <token>)"
       }
     },
     "schemas": {
-      "ApiResponse": {
+      "ApiResponseEnvelope": {
         "type": "object",
+        "required": ["success", "message"],
         "properties": {
           "success": { "type": "boolean", "example": true },
           "message": { "type": "string", "example": "Operation successful" },
-          "data": { "type": "object" },
-          "meta": { "type": "object" }
+          "data": { "type": "object", "nullable": true },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string", "example": "VALIDATION_ERROR" },
+              "message": { "type": "string", "example": "Validation Error" },
+              "details": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": { "type": "string", "example": "farm_name" },
+                    "message": { "type": "string", "example": "Farm name is required" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer", "example": 54 },
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 20 },
+          "total_pages": { "type": "integer", "example": 3 }
         }
       },
       "FarmInput": {
@@ -53,26 +89,129 @@
         "required": ["farm_name"],
         "properties": {
           "farm_name": { "type": "string", "example": "Peternakan Barokah Jaya" },
+          "owner_name": { "type": "string", "nullable": true, "example": "Haji Slamet" },
+          "address": { "type": "string", "nullable": true, "example": "Pekon Adiluwih RT 02 RW 01, Kecamatan Adiluwih" },
+          "phone": { "type": "string", "nullable": true, "example": "081234567890" },
+          "notes": { "type": "string", "nullable": true, "example": "Kandang modern tertutup sistem biosekuriti" },
+          "latitude": { "type": "number", "nullable": true, "example": -5.2269279 },
+          "longitude": { "type": "number", "nullable": true, "example": 105.0205381 },
+          "farm_category_id": { "type": "integer", "nullable": true, "example": 1 },
+          "farm_scale_id": { "type": "integer", "nullable": true, "example": 2 },
+          "district_id": { "type": "integer", "nullable": true, "example": 8 },
+          "village_id": { "type": "integer", "nullable": true, "example": 1 }
+        }
+      },
+      "FarmListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "1" },
+          "source_farm_id": { "type": "integer", "nullable": true, "example": 101 },
+          "farm_name": { "type": "string", "example": "Peternakan Barokah Jaya" },
+          "owner_name": { "type": "string", "nullable": true, "example": "Haji Slamet" },
+          "address": { "type": "string", "nullable": true, "example": "Pekon Adiluwih RT 02 RW 01" },
+          "phone": { "type": "string", "nullable": true, "example": "081234567890" },
+          "notes": { "type": "string", "nullable": true, "example": "Kandang modern" },
+          "latitude": { "type": "number", "nullable": true, "example": -5.2269279 },
+          "longitude": { "type": "number", "nullable": true, "example": 105.0205381 },
+          "category": { "type": "string", "nullable": true, "example": "Komersial" },
+          "category_id": { "type": "string", "nullable": true, "example": "1" },
+          "scale": { "type": "string", "nullable": true, "example": "Besar" },
+          "scale_id": { "type": "string", "nullable": true, "example": "2" },
+          "district": { "type": "string", "nullable": true, "example": "Adiluwih" },
+          "district_id": { "type": "string", "nullable": true, "example": "8" },
+          "village": { "type": "string", "nullable": true, "example": "Adiluwih" },
+          "village_id": { "type": "string", "nullable": true, "example": "1" },
+          "total_livestock_count": { "type": "integer", "example": 2 },
+          "total_population": { "type": "integer", "example": 150 },
+          "primary_photo": { "type": "string", "nullable": true, "example": "/uploads/farms/photo-1708341.jpg" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "FarmDetail": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "1" },
+          "farm_name": { "type": "string", "example": "Peternakan Barokah Jaya" },
           "owner_name": { "type": "string", "example": "Haji Slamet" },
-          "address": { "type": "string", "example": "Pekon Adiluwih RT 02 RW 01, Kecamatan Adiluwih" },
+          "address": { "type": "string", "example": "Pekon Adiluwih RT 02 RW 01" },
           "phone": { "type": "string", "example": "081234567890" },
-          "notes": { "type": "string", "example": "Kandang modern tertutup" },
+          "notes": { "type": "string", "example": "Kandang modern" },
           "latitude": { "type": "number", "example": -5.2269279 },
           "longitude": { "type": "number", "example": 105.0205381 },
-          "farm_category_id": { "type": "integer", "example": 1 },
-          "farm_scale_id": { "type": "integer", "example": 2 },
-          "district_id": { "type": "integer", "example": 8 },
-          "village_id": { "type": "integer", "example": 1 }
+          "farm_category": {
+            "type": "object",
+            "properties": { "id": { "type": "string", "example": "1" }, "name": { "type": "string", "example": "Komersial" } }
+          },
+          "farm_scale": {
+            "type": "object",
+            "properties": { "id": { "type": "string", "example": "2" }, "name": { "type": "string", "example": "Besar" } }
+          },
+          "district": {
+            "type": "object",
+            "properties": { "id": { "type": "string", "example": "8" }, "name": { "type": "string", "example": "Adiluwih" }, "code": { "type": "string", "example": "18.10.08" } }
+          },
+          "village": {
+            "type": "object",
+            "properties": { "id": { "type": "string", "example": "1" }, "name": { "type": "string", "example": "Adiluwih" }, "code": { "type": "string", "example": "18.10.08.2001" } }
+          },
+          "livestock": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/LivestockItem" }
+          },
+          "farm_photos": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/FarmPhoto" }
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
         }
       },
       "LivestockInput": {
         "type": "object",
         "required": ["livestock_type_id", "population"],
         "properties": {
-          "livestock_category_id": { "type": "integer", "example": 1 },
+          "livestock_category_id": { "type": "integer", "nullable": true, "example": 1 },
           "livestock_type_id": { "type": "integer", "example": 1 },
-          "livestock_subtype_id": { "type": "integer", "example": null },
+          "livestock_subtype_id": { "type": "integer", "nullable": true, "example": 2 },
           "population": { "type": "integer", "example": 25 }
+        }
+      },
+      "LivestockItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "1" },
+          "farm_id": { "type": "string", "example": "1" },
+          "livestock_category_id": { "type": "string", "example": "1" },
+          "livestock_type_id": { "type": "string", "example": "1" },
+          "livestock_subtype_id": { "type": "string", "nullable": true, "example": "2" },
+          "population": { "type": "integer", "example": 25 },
+          "livestock_category": {
+            "type": "object",
+            "properties": { "id": { "type": "string", "example": "1" }, "name": { "type": "string", "example": "Ruminansia Besar" } }
+          },
+          "livestock_type": {
+            "type": "object",
+            "properties": { "id": { "type": "string", "example": "1" }, "name": { "type": "string", "example": "Sapi Potong" } }
+          },
+          "livestock_subtype": {
+            "type": "object",
+            "nullable": true,
+            "properties": { "id": { "type": "string", "example": "2" }, "name": { "type": "string", "example": "Simental" } }
+          }
+        }
+      },
+      "FarmPhoto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "1" },
+          "farm_id": { "type": "string", "example": "1" },
+          "file_path": { "type": "string", "example": "/uploads/farms/photo-1708341.jpg" },
+          "caption": { "type": "string", "nullable": true, "example": "Tampak depan kandang" },
+          "is_primary": { "type": "boolean", "example": true },
+          "sort_order": { "type": "integer", "example": 1 },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
         }
       },
       "ValidationInput": {
@@ -82,7 +221,168 @@
           "entity_type": { "type": "string", "enum": ["farm", "livestock"], "example": "farm" },
           "entity_id": { "type": "string", "example": "1" },
           "status": { "type": "string", "enum": ["pending", "valid", "rejected"], "example": "valid" },
-          "notes": { "type": "string", "example": "Sudah diverifikasi langsung di lapangan" }
+          "notes": { "type": "string", "example": "Sudah diverifikasi langsung oleh mantri hewan di lapangan" }
+        }
+      },
+      "ValidationRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "1" },
+          "entity_type": { "type": "string", "example": "farm" },
+          "entity_id": { "type": "string", "example": "1" },
+          "status": { "type": "string", "example": "valid" },
+          "notes": { "type": "string", "example": "Verifikasi selesai" },
+          "validated_by": { "type": "string", "nullable": true, "example": "1" },
+          "validated_at": { "type": "string", "format": "date-time" },
+          "validator": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": { "type": "string", "example": "1" },
+              "name": { "type": "string", "example": "Dr. Subandi" },
+              "email": { "type": "string", "example": "subandi@panganspasial.id" }
+            }
+          }
+        }
+      },
+      "GeoJSONFeatureCollection": {
+        "type": "object",
+        "required": ["type", "features"],
+        "properties": {
+          "type": { "type": "string", "example": "FeatureCollection" },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["type", "geometry", "properties"],
+              "properties": {
+                "type": { "type": "string", "example": "Feature" },
+                "id": { "type": "string", "example": "1" },
+                "geometry": {
+                  "type": "object",
+                  "required": ["type", "coordinates"],
+                  "properties": {
+                    "type": { "type": "string", "example": "Point" },
+                    "coordinates": { "type": "array", "items": { "type": "number" }, "example": [105.0205381, -5.2269279] }
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "example": "1" },
+                    "farm_name": { "type": "string", "example": "Peternakan Barokah Jaya" },
+                    "owner_name": { "type": "string", "example": "Haji Slamet" },
+                    "category": { "type": "string", "example": "Komersial" },
+                    "scale": { "type": "string", "example": "Besar" },
+                    "district": { "type": "string", "example": "Adiluwih" },
+                    "village": { "type": "string", "example": "Adiluwih" },
+                    "livestock_count": { "type": "integer", "example": 2 },
+                    "total_population": { "type": "integer", "example": 150 }
+                  }
+                }
+              }
+            }
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer", "example": 54 },
+              "filters_applied": { "type": "array", "items": { "type": "string" }, "example": ["district_id"] }
+            }
+          }
+        }
+      },
+      "HeatmapResponseData": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer", "example": 45 },
+          "bounds": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "minLat": { "type": "number", "example": -5.45 },
+              "maxLat": { "type": "number", "example": -5.15 },
+              "minLng": { "type": "number", "example": 104.85 },
+              "maxLng": { "type": "number", "example": 105.15 }
+            }
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "example": "1" },
+                "farm_name": { "type": "string", "example": "Peternakan Barokah Jaya" },
+                "latitude": { "type": "number", "example": -5.2269279 },
+                "longitude": { "type": "number", "example": 105.0205381 },
+                "weight": { "type": "number", "example": 7.45 },
+                "population": { "type": "integer", "example": 150 },
+                "scale": { "type": "string", "example": "Besar" },
+                "district": { "type": "string", "example": "Adiluwih" }
+              }
+            }
+          }
+        }
+      },
+      "StatisticsOverviewData": {
+        "type": "object",
+        "properties": {
+          "kpi": {
+            "type": "object",
+            "properties": {
+              "total_farms": { "type": "integer", "example": 128 },
+              "total_livestock_population": { "type": "integer", "example": 45800 },
+              "total_districts": { "type": "integer", "example": 9 },
+              "total_livestock_types": { "type": "integer", "example": 12 }
+            }
+          },
+          "category_distribution": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "example": "1" },
+                "category": { "type": "string", "example": "Komersial" },
+                "count": { "type": "integer", "example": 72 }
+              }
+            }
+          },
+          "scale_distribution": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "example": "2" },
+                "scale": { "type": "string", "example": "Besar" },
+                "count": { "type": "integer", "example": 35 }
+              }
+            }
+          }
+        }
+      },
+      "SDSSRecommendationItem": {
+        "type": "object",
+        "properties": {
+          "rank": { "type": "integer", "example": 1 },
+          "district_id": { "type": "string", "example": "8" },
+          "district_name": { "type": "string", "example": "Adiluwih" },
+          "district_code": { "type": "string", "example": "18.10.08" },
+          "score": { "type": "number", "example": 0.8925 },
+          "farm_count": { "type": "integer", "example": 35 },
+          "total_population": { "type": "integer", "example": 14200 },
+          "recommendation": { "type": "string", "example": "Sangat Potensial" },
+          "explanation": { "type": "string", "example": "Kecamatan Adiluwih merupakan sentra utama peternakan unggulan dengan konsentrasi populasi ternak dan skala usaha tertinggi." }
+        }
+      },
+      "UserResponseData": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "1" },
+          "name": { "type": "string", "example": "Super Administrator" },
+          "email": { "type": "string", "example": "admin@panganspasial.id" },
+          "role": { "type": "string", "example": "Superadmin" },
+          "is_active": { "type": "boolean", "example": true },
+          "created_at": { "type": "string", "format": "date-time" }
         }
       }
     }
@@ -101,16 +401,39 @@
                 "type": "object",
                 "required": ["email", "password"],
                 "properties": {
-                  "email": { "type": "string", "example": "admin@panganspasial.id" },
-                  "password": { "type": "string", "example": "Admin#2026" }
+                  "email": { "type": "string", "format": "email", "example": "admin@panganspasial.id" },
+                  "password": { "type": "string", "format": "password", "example": "Admin#2026" }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Login berhasil, mengembalikan token JWT" },
-          "401": { "description": "Email atau password salah" }
+          "200": {
+            "description": "Login berhasil, mengembalikan token JWT dan profil user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Login successful" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+                        "user": { "$ref": "#/components/schemas/UserResponseData" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Email atau password salah",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } } }
+          }
         }
       }
     },
@@ -118,10 +441,28 @@
       "get": {
         "tags": ["Authentication"],
         "summary": "Get Profile Pengguna Login",
+        "description": "Mengambil detail profil akun yang sedang login dari header Bearer token.",
         "security": [{ "BearerAuth": [] }],
         "responses": {
-          "200": { "description": "Data profil pengguna yang sedang login" },
-          "401": { "description": "Token tidak valid atau belum login" }
+          "200": {
+            "description": "Data profil pengguna yang sedang aktif",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "User profile retrieved" },
+                    "data": { "$ref": "#/components/schemas/UserResponseData" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token tidak valid atau belum disertakan",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } } }
+          }
         }
       }
     },
@@ -129,84 +470,213 @@
       "get": {
         "tags": ["Farms (Public)"],
         "summary": "Daftar Peternakan Publik (Pagination & Filter)",
+        "description": "Mengambil daftar peternakan publik dengan paginasi, pencarian teks, dan filter multi-kriteria.",
         "parameters": [
-          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
-          { "name": "search", "in": "query", "schema": { "type": "string" }, "description": "Cari nama peternakan, pemilik, atau alamat" },
-          { "name": "district_id", "in": "query", "schema": { "type": "string" } },
-          { "name": "village_id", "in": "query", "schema": { "type": "string" } },
-          { "name": "farm_category_id", "in": "query", "schema": { "type": "string" } },
-          { "name": "farm_scale_id", "in": "query", "schema": { "type": "string" } },
-          { "name": "livestock_type_id", "in": "query", "schema": { "type": "string" } }
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 }, "description": "Nomor halaman (default: 1)" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 }, "description": "Jumlah item per halaman (default: 20, max: 100)" },
+          { "name": "search", "in": "query", "schema": { "type": "string" }, "description": "Cari berdasarkan nama peternakan, nama pemilik, atau alamat" },
+          { "name": "district_id", "in": "query", "schema": { "type": "string" }, "description": "Filter ID Kecamatan" },
+          { "name": "village_id", "in": "query", "schema": { "type": "string" }, "description": "Filter ID Desa/Pekon" },
+          { "name": "farm_category_id", "in": "query", "schema": { "type": "string" }, "description": "Filter ID Kategori Peternakan" },
+          { "name": "farm_scale_id", "in": "query", "schema": { "type": "string" }, "description": "Filter ID Skala Usaha" },
+          { "name": "livestock_type_id", "in": "query", "schema": { "type": "string" }, "description": "Filter ID Jenis Ternak yang dipelihara" }
         ],
-        "responses": { "200": { "description": "Daftar peternakan terpaginasi" } }
+        "responses": {
+          "200": {
+            "description": "Daftar peternakan terpaginasi beserta metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farms retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/FarmListItem" }
+                    },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/farms/{id}": {
       "get": {
         "tags": ["Farms (Public)"],
-        "summary": "Detail Peternakan (Untuk Popup & Halaman Detail)",
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "summary": "Detail Peternakan Lengkap (Untuk Popup & Halaman Detail)",
+        "description": "Mengambil detail lengkap peternakan termasuk relasi komoditas ternak, foto, dan wilayah administratif.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "ID Peternakan" }
+        ],
         "responses": {
-          "200": { "description": "Detail peternakan lengkap dengan daftar ternak, foto, dan lokasi" },
-          "404": { "description": "Peternakan tidak ditemukan" }
+          "200": {
+            "description": "Detail peternakan berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farm detail retrieved successfully" },
+                    "data": { "$ref": "#/components/schemas/FarmDetail" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Peternakan tidak ditemukan",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } } }
+          }
         }
       }
     },
     "/admin/farms": {
       "get": {
         "tags": ["Farms Management (Admin CRUD)"],
-        "summary": "Daftar Peternakan (Admin Panel)",
+        "summary": "Daftar Peternakan (Admin Panel Table)",
         "security": [{ "BearerAuth": [] }],
         "parameters": [
-          { "name": "page", "in": "query", "schema": { "type": "integer" } },
-          { "name": "limit", "in": "query", "schema": { "type": "integer" } },
-          { "name": "search", "in": "query", "schema": { "type": "string" } }
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "district_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "farm_category_id", "in": "query", "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Daftar peternakan untuk tabel admin" } }
+        "responses": {
+          "200": {
+            "description": "Daftar peternakan untuk tabel admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farms retrieved successfully" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/FarmListItem" } },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
         "tags": ["Farms Management (Admin CRUD)"],
         "summary": "Tambah Peternakan Baru (Otomatis Buat PostGIS Geometry)",
-        "description": "Menyimpan data peternakan baru dan otomatis menghasilkan Point Geometry PostGIS (SRID 4326).",
+        "description": "Menyimpan data peternakan baru dan otomatis menghasilkan Point Geometry PostGIS (SRID 4326) dari latitude & longitude.",
         "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FarmInput" } } }
         },
         "responses": {
-          "201": { "description": "Peternakan berhasil dibuat" },
-          "400": { "description": "Validasi input gagal" }
+          "201": {
+            "description": "Peternakan berhasil dibuat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farm created successfully" },
+                    "data": { "$ref": "#/components/schemas/FarmDetail" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validasi form gagal",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } } }
+          }
         }
       }
     },
     "/admin/farms/{id}": {
       "get": {
         "tags": ["Farms Management (Admin CRUD)"],
-        "summary": "Ambil Detail Peternakan (Admin)",
+        "summary": "Ambil Detail Peternakan untuk Form Edit",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Detail peternakan" } }
+        "responses": {
+          "200": {
+            "description": "Detail peternakan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farm detail retrieved successfully" },
+                    "data": { "$ref": "#/components/schemas/FarmDetail" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Peternakan tidak ditemukan",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiErrorResponse" } } }
+          }
+        }
       },
       "patch": {
         "tags": ["Farms Management (Admin CRUD)"],
-        "summary": "Update Peternakan / Geser Titik Koordinat Spasial",
-        "description": "Memperbarui atribut dan/atau koordinat latitude & longitude peternakan. PostGIS geometry akan otomatis disinkronkan.",
+        "summary": "Update Data Peternakan / Geser Pin Peta",
+        "description": "Memperbarui atribut dan/atau koordinat spasial. Geometri PostGIS akan otomatis disinkronkan.",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FarmInput" } } }
         },
-        "responses": { "200": { "description": "Peternakan berhasil diperbarui" } }
+        "responses": {
+          "200": {
+            "description": "Peternakan berhasil diperbarui",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farm updated successfully" },
+                    "data": { "$ref": "#/components/schemas/FarmDetail" }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "delete": {
         "tags": ["Farms Management (Admin CRUD)"],
         "summary": "Hapus Peternakan (Cascade)",
-        "description": "Menghapus peternakan serta otomatis menghapus data ternak dan fotonya.",
+        "description": "Menghapus peternakan serta seluruh data ternak dan foto yang terhubung secara beruntun.",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Peternakan berhasil dihapus" } }
+        "responses": {
+          "200": {
+            "description": "Peternakan berhasil dihapus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farm deleted successfully" },
+                    "data": { "type": "object", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/farms/{farmId}/livestock": {
@@ -214,7 +684,23 @@
         "tags": ["Livestock Management (Admin CRUD)"],
         "summary": "Daftar Ternak di Peternakan Tertentu",
         "parameters": [{ "name": "farmId", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Daftar komoditas ternak" } }
+        "responses": {
+          "200": {
+            "description": "Daftar komoditas ternak yang dipelihara",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Livestock retrieved successfully" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/LivestockItem" } }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/farms/{farmId}/livestock": {
@@ -227,41 +713,105 @@
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LivestockInput" } } }
         },
-        "responses": { "201": { "description": "Komoditas ternak berhasil ditambahkan" } }
+        "responses": {
+          "201": {
+            "description": "Komoditas ternak berhasil ditambahkan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Livestock added successfully" },
+                    "data": { "$ref": "#/components/schemas/LivestockItem" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/livestock/{id}": {
       "patch": {
         "tags": ["Livestock Management (Admin CRUD)"],
-        "summary": "Update Populasi / Jenis Ternak",
+        "summary": "Update Populasi / Subtipe Ternak",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LivestockInput" } } }
         },
-        "responses": { "200": { "description": "Data ternak berhasil diperbarui" } }
+        "responses": {
+          "200": {
+            "description": "Data ternak berhasil diperbarui",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Livestock updated successfully" },
+                    "data": { "$ref": "#/components/schemas/LivestockItem" }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "delete": {
         "tags": ["Livestock Management (Admin CRUD)"],
         "summary": "Hapus Catatan Ternak",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Data ternak berhasil dihapus" } }
+        "responses": {
+          "200": {
+            "description": "Data ternak berhasil dihapus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Livestock deleted successfully" },
+                    "data": { "type": "object", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/farms/{farmId}/photos": {
       "get": {
         "tags": ["Farm Photos"],
-        "summary": "Daftar Foto Peternakan",
+        "summary": "Daftar Galeri Foto Peternakan",
         "parameters": [{ "name": "farmId", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Daftar foto" } }
+        "responses": {
+          "200": {
+            "description": "Daftar foto peternakan diurutkan berdasarkan foto utama",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Photos retrieved successfully" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/FarmPhoto" } }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/farms/{farmId}/photos": {
       "post": {
         "tags": ["Farm Photos"],
-        "summary": "Upload Foto Peternakan (Multipart File)",
+        "summary": "Upload Foto Peternakan (Multipart Form Data)",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "farmId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
@@ -272,8 +822,8 @@
                 "type": "object",
                 "required": ["photo"],
                 "properties": {
-                  "photo": { "type": "string", "format": "binary" },
-                  "caption": { "type": "string", "example": "Tampak depan kandang sapi" },
+                  "photo": { "type": "string", "format": "binary", "description": "File gambar (JPG/PNG/WebP, max 5MB)" },
+                  "caption": { "type": "string", "example": "Tampak depan kandang sapi perah" },
                   "is_primary": { "type": "boolean", "example": true },
                   "sort_order": { "type": "integer", "example": 1 }
                 }
@@ -281,13 +831,29 @@
             }
           }
         },
-        "responses": { "201": { "description": "Foto berhasil diunggah" } }
+        "responses": {
+          "201": {
+            "description": "Foto berhasil diunggah",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Photo uploaded successfully" },
+                    "data": { "$ref": "#/components/schemas/FarmPhoto" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/farm-photos/{id}": {
       "patch": {
         "tags": ["Farm Photos"],
-        "summary": "Update Keterangan / Set Primary Photo",
+        "summary": "Update Keterangan / Jadikan Foto Utama (Primary)",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
@@ -296,31 +862,63 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "caption": { "type": "string" },
-                  "is_primary": { "type": "boolean" },
-                  "sort_order": { "type": "integer" }
+                  "caption": { "type": "string", "example": "Kandang pembibitan utama" },
+                  "is_primary": { "type": "boolean", "example": true },
+                  "sort_order": { "type": "integer", "example": 1 }
                 }
               }
             }
           }
         },
-        "responses": { "200": { "description": "Foto berhasil diupdate" } }
+        "responses": {
+          "200": {
+            "description": "Metadata foto berhasil diupdate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Photo updated successfully" },
+                    "data": { "$ref": "#/components/schemas/FarmPhoto" }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "delete": {
         "tags": ["Farm Photos"],
-        "summary": "Hapus Foto Peternakan (Termasuk File Fisik)",
+        "summary": "Hapus Foto Peternakan (File Fisik Ikut Terhapus)",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Foto berhasil dihapus" } }
+        "responses": {
+          "200": {
+            "description": "Foto dan file fisik berhasil dihapus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Photo deleted successfully" },
+                    "data": { "type": "object", "nullable": true, "example": null }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/spatial/farms": {
       "get": {
         "tags": ["Spatial WebGIS (GeoJSON)"],
         "summary": "Peternakan sebagai GeoJSON FeatureCollection",
-        "description": "Endpoint utama WebGIS untuk menampilkan marker titik peternakan pada Leaflet, mendukung Bounding Box dan filter spasial.",
+        "description": "Endpoint utama WebGIS untuk rendering layer titik peternakan pada Leaflet/Mapbox. Mengembalikan RAW GeoJSON RFC 7946 (tanpa envelope REST).",
         "parameters": [
-          { "name": "bbox", "in": "query", "schema": { "type": "string" }, "description": "Format: minLng,minLat,maxLng,maxLat (Contoh: 105.00,-5.30,105.05,-5.20)" },
+          { "name": "bbox", "in": "query", "schema": { "type": "string" }, "description": "Bounding box: minLng,minLat,maxLng,maxLat (Contoh: 104.90,-5.40,105.10,-5.20)" },
           { "name": "district_id", "in": "query", "schema": { "type": "string" } },
           { "name": "village_id", "in": "query", "schema": { "type": "string" } },
           { "name": "farm_category_id", "in": "query", "schema": { "type": "string" } },
@@ -329,23 +927,51 @@
           { "name": "search", "in": "query", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": { "description": "GeoJSON FeatureCollection compliant RFC 7946" }
+          "200": {
+            "description": "Raw GeoJSON FeatureCollection (RFC 7946) langsung siap di-load ke L.geoJSON(data)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GeoJSONFeatureCollection" }
+              }
+            }
+          }
         }
       }
     },
     "/spatial/districts": {
       "get": {
         "tags": ["Spatial WebGIS (GeoJSON)"],
-        "summary": "Batas Wilayah Kecamatan sebagai GeoJSON",
-        "responses": { "200": { "description": "GeoJSON FeatureCollection batas kecamatan" } }
+        "summary": "Batas Poligon Kecamatan sebagai GeoJSON",
+        "description": "Mengembalikan poligon batas administratif kecamatan di Pringsewu sebagai GeoJSON FeatureCollection.",
+        "responses": {
+          "200": {
+            "description": "GeoJSON FeatureCollection batas kecamatan",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GeoJSONFeatureCollection" }
+              }
+            }
+          }
+        }
       }
     },
     "/spatial/villages": {
       "get": {
         "tags": ["Spatial WebGIS (GeoJSON)"],
-        "summary": "Batas Wilayah Desa sebagai GeoJSON",
-        "parameters": [{ "name": "district_id", "in": "query", "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "GeoJSON FeatureCollection batas desa/pekon" } }
+        "summary": "Batas Poligon Desa/Pekon sebagai GeoJSON",
+        "parameters": [
+          { "name": "district_id", "in": "query", "schema": { "type": "string" }, "description": "Filter desa berdasarkan ID Kecamatan" }
+        ],
+        "responses": {
+          "200": {
+            "description": "GeoJSON FeatureCollection batas desa/pekon",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GeoJSONFeatureCollection" }
+              }
+            }
+          }
+        }
       }
     },
     "/spatial/districts/{id}": {
@@ -353,19 +979,62 @@
         "tags": ["Spatial WebGIS (GeoJSON)"],
         "summary": "Detail Spasial & Statistik Kecamatan",
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Detail agregasi kecamatan" } }
+        "responses": {
+          "200": {
+            "description": "Detail statistik dan geometri kecamatan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "District spatial detail retrieved" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "example": "8" },
+                        "name": { "type": "string", "example": "Adiluwih" },
+                        "code": { "type": "string", "example": "18.10.08" },
+                        "total_farms": { "type": "integer", "example": 35 },
+                        "total_villages": { "type": "integer", "example": 14 },
+                        "total_population": { "type": "integer", "example": 14200 },
+                        "geometry": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/heatmap": {
       "get": {
         "tags": ["Spatial WebGIS (GeoJSON)"],
         "summary": "Dataset Titik Kepadatan Heatmap (Leaflet Heatmap)",
-        "description": "Menghasilkan bobot dinamis berdasarkan skala usaha dan populasi ternak untuk rendering heatmap layer.",
+        "description": "Menghasilkan koordinat dengan bobot dinamis (weight factor) berdasarkan skala usaha dan populasi ternak untuk plugin leaflet-heat.",
         "parameters": [
           { "name": "district_id", "in": "query", "schema": { "type": "string" } },
           { "name": "farm_category_id", "in": "query", "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Array titik [lat, lng, weight]" } }
+        "responses": {
+          "200": {
+            "description": "Daftar koordinat dan bobot intensitas heatmap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Heatmap points calculated successfully" },
+                    "data": { "$ref": "#/components/schemas/HeatmapResponseData" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/statistics/overview": {
@@ -374,40 +1043,154 @@
         "summary": "Ringkasan KPI Dashboard Utama",
         "parameters": [
           { "name": "district_id", "in": "query", "schema": { "type": "string" } },
-          { "name": "farm_category_id", "in": "query", "schema": { "type": "string" } }
+          { "name": "farm_category_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "farm_scale_id", "in": "query", "schema": { "type": "string" } }
         ],
-        "responses": { "200": { "description": "Total peternakan, populasi, distribusi kategori & skala" } }
+        "responses": {
+          "200": {
+            "description": "Total peternakan, total populasi, dan distribusi kategori/skala",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Success" },
+                    "data": { "$ref": "#/components/schemas/StatisticsOverviewData" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/statistics/farms": {
       "get": {
         "tags": ["Dashboard Statistics"],
-        "summary": "Statistik Peternakan per Kecamatan",
-        "responses": { "200": { "description": "Agregasi jumlah unit usaha per kecamatan" } }
+        "summary": "Statistik Peternakan & Populasi per Kecamatan",
+        "responses": {
+          "200": {
+            "description": "Agregasi jumlah unit usaha dan populasi tiap kecamatan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Success" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "district_id": { "type": "string", "example": "8" },
+                          "district_name": { "type": "string", "example": "Adiluwih" },
+                          "district_code": { "type": "string", "example": "18.10.08" },
+                          "farm_count": { "type": "integer", "example": 35 },
+                          "village_count": { "type": "integer", "example": 14 },
+                          "total_population": { "type": "integer", "example": 14200 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/statistics/livestock": {
       "get": {
         "tags": ["Dashboard Statistics"],
-        "summary": "Statistik Populasi per Jenis Ternak",
-        "parameters": [{ "name": "district_id", "in": "query", "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Populasi ternak terkelompok per komoditas" } }
+        "summary": "Statistik Populasi per Komoditas Ternak",
+        "parameters": [
+          { "name": "district_id", "in": "query", "schema": { "type": "string" }, "description": "Filter per kecamatan" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Populasi ternak terkelompok per komoditas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Success" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type_id": { "type": "string", "example": "1" },
+                          "type_name": { "type": "string", "example": "Sapi Potong" },
+                          "category_name": { "type": "string", "example": "Ruminansia Besar" },
+                          "total_population": { "type": "integer", "example": 5400 },
+                          "farm_count": { "type": "integer", "example": 42 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/recommendations": {
       "get": {
         "tags": ["SDSS Decision Support"],
         "summary": "Rekomendasi Potensi Wilayah SDSS (Publik)",
-        "description": "Mengembalikan peringkat dan penilaian potensi pengembangan peternakan tiap kecamatan menggunakan kalkulasi SAW.",
-        "responses": { "200": { "description": "Peringkat ranking dan rekomendasi kecamatan" } }
+        "description": "Mengembalikan peringkat ranking dan rekomendasi potensi peternakan kecamatan dihitung menggunakan metode SAW.",
+        "responses": {
+          "200": {
+            "description": "Daftar peringkat kecamatan beserta skor dan rekomendasi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "SDSS recommendations generated successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/SDSSRecommendationItem" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/recommendations/calculate": {
       "post": {
         "tags": ["SDSS Decision Support"],
-        "summary": "Hitung Ulang & Simpan Hasil SDSS (Admin)",
+        "summary": "Hitung Ulang & Simpan Hasil SDSS ke Database (Admin)",
         "security": [{ "BearerAuth": [] }],
-        "responses": { "200": { "description": "Hasil perhitungan SDSS berhasil diperbarui di database" } }
+        "responses": {
+          "200": {
+            "description": "Hasil perhitungan SDSS berhasil diperbarui di database",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "SDSS calculation completed and persisted successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/SDSSRecommendationItem" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/sdss/criteria": {
@@ -415,7 +1198,36 @@
         "tags": ["SDSS Decision Support"],
         "summary": "Daftar Kriteria & Bobot SDSS",
         "security": [{ "BearerAuth": [] }],
-        "responses": { "200": { "description": "Daftar kriteria SDSS" } }
+        "responses": {
+          "200": {
+            "description": "Daftar kriteria SDSS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Criteria retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "1" },
+                          "name": { "type": "string", "example": "Populasi Ternak" },
+                          "description": { "type": "string", "example": "Total populasi hewan ternak di kecamatan" },
+                          "criteria_type": { "type": "string", "enum": ["benefit", "cost"], "example": "benefit" },
+                          "weight": { "type": "number", "example": 0.35 },
+                          "is_active": { "type": "boolean", "example": true }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
         "tags": ["SDSS Decision Support"],
@@ -429,8 +1241,8 @@
                 "type": "object",
                 "required": ["name", "weight"],
                 "properties": {
-                  "name": { "type": "string", "example": "Ketersediaan Air" },
-                  "description": { "type": "string", "example": "Akses sumber air bersih" },
+                  "name": { "type": "string", "example": "Ketersediaan Air Bersih" },
+                  "description": { "type": "string", "example": "Indikator akses sumber air tanah" },
                   "criteria_type": { "type": "string", "enum": ["benefit", "cost"], "example": "benefit" },
                   "weight": { "type": "number", "example": 0.20 },
                   "is_active": { "type": "boolean", "example": true }
@@ -439,7 +1251,23 @@
             }
           }
         },
-        "responses": { "201": { "description": "Kriteria berhasil ditambahkan" } }
+        "responses": {
+          "201": {
+            "description": "Kriteria berhasil dibuat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Criterion created successfully" },
+                    "data": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/sdss/criteria/{id}": {
@@ -448,21 +1276,67 @@
         "summary": "Update Kriteria SDSS",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Kriteria berhasil diupdate" } }
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "criteria_type": { "type": "string", "enum": ["benefit", "cost"] },
+                  "weight": { "type": "number" },
+                  "is_active": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Kriteria berhasil diupdate" }
+        }
       },
       "delete": {
         "tags": ["SDSS Decision Support"],
         "summary": "Hapus Kriteria SDSS",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Kriteria berhasil dihapus" } }
+        "responses": {
+          "200": { "description": "Kriteria berhasil dihapus" }
+        }
       }
     },
     "/farm-categories": {
       "get": {
         "tags": ["Master Data (Farm & Scale)"],
-        "summary": "Daftar Kategori Peternakan (Industri / Rumah Tangga)",
-        "responses": { "200": { "description": "Daftar kategori" } }
+        "summary": "Daftar Kategori Peternakan (Industri / Mandiri / Kemitraan)",
+        "responses": {
+          "200": {
+            "description": "Daftar kategori peternakan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farm categories retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "1" },
+                          "name": { "type": "string", "example": "Komersial" },
+                          "description": { "type": "string", "example": "Peternakan skala komersial berizin" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/farm-categories": {
@@ -478,8 +1352,8 @@
                 "type": "object",
                 "required": ["name"],
                 "properties": {
-                  "name": { "type": "string", "example": "Komersial" },
-                  "description": { "type": "string", "example": "Peternakan komersial" }
+                  "name": { "type": "string", "example": "Perbibitan" },
+                  "description": { "type": "string", "example": "Sentra perbibitan ternak unggul" }
                 }
               }
             }
@@ -488,109 +1362,172 @@
         "responses": { "201": { "description": "Kategori berhasil dibuat" } }
       }
     },
-    "/admin/farm-categories/{id}": {
-      "patch": {
-        "tags": ["Master Data (Farm & Scale)"],
-        "summary": "Update Kategori Peternakan",
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Kategori berhasil diupdate" } }
-      },
-      "delete": {
-        "tags": ["Master Data (Farm & Scale)"],
-        "summary": "Hapus Kategori Peternakan",
-        "security": [{ "BearerAuth": [] }],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Kategori berhasil dihapus" } }
-      }
-    },
     "/farm-scales": {
       "get": {
         "tags": ["Master Data (Farm & Scale)"],
-        "summary": "Daftar Skala Usaha (Besar / Sedang / Kecil)",
-        "responses": { "200": { "description": "Daftar skala usaha" } }
-      }
-    },
-    "/admin/farm-scales": {
-      "post": {
-        "tags": ["Master Data (Farm & Scale)"],
-        "summary": "Tambah Skala Usaha Baru",
-        "security": [{ "BearerAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name"],
-                "properties": {
-                  "name": { "type": "string", "example": "Mikro" },
-                  "description": { "type": "string", "example": "Skala mikro rumahan" }
+        "summary": "Daftar Skala Usaha Peternakan (Besar / Sedang / Kecil / Mikro)",
+        "responses": {
+          "200": {
+            "description": "Daftar skala usaha peternakan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Farm scales retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "1" },
+                          "name": { "type": "string", "example": "Besar" },
+                          "description": { "type": "string", "example": "Populasi > 100 ekor" }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
           }
-        },
-        "responses": { "201": { "description": "Skala berhasil dibuat" } }
+        }
       }
     },
     "/livestock-categories": {
       "get": {
         "tags": ["Master Data (Livestock Taxonomy)"],
-        "summary": "Daftar Kategori Ternak (Ruminansia / Unggas)",
-        "responses": { "200": { "description": "Daftar kategori ternak" } }
+        "summary": "Daftar Taksonomi Kategori Ternak (Ruminansia Besar, Ruminansia Kecil, Unggas)",
+        "responses": {
+          "200": {
+            "description": "Daftar kategori ternak",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Livestock categories retrieved" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "1" },
+                          "name": { "type": "string", "example": "Ruminansia Besar" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/livestock-types": {
       "get": {
         "tags": ["Master Data (Livestock Taxonomy)"],
-        "summary": "Daftar Jenis Ternak (Sapi / Kambing / Ayam)",
-        "parameters": [{ "name": "category_id", "in": "query", "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Daftar jenis ternak" } }
-      }
-    },
-    "/admin/livestock-types": {
-      "post": {
-        "tags": ["Master Data (Livestock Taxonomy)"],
-        "summary": "Tambah Jenis Ternak Baru",
-        "security": [{ "BearerAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["category_id", "name"],
-                "properties": {
-                  "category_id": { "type": "integer", "example": 1 },
-                  "name": { "type": "string", "example": "Kerbau" },
-                  "description": { "type": "string", "example": "Ternak kerbau" }
+        "summary": "Daftar Jenis Ternak (Sapi Potong, Sapi Perah, Kambing, Ayam Pedaging)",
+        "parameters": [
+          { "name": "category_id", "in": "query", "schema": { "type": "string" }, "description": "Filter berdasarkan ID Kategori Ternak" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daftar jenis ternak",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Livestock types retrieved" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "1" },
+                          "category_id": { "type": "string", "example": "1" },
+                          "name": { "type": "string", "example": "Sapi Potong" }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
           }
-        },
-        "responses": { "201": { "description": "Jenis ternak berhasil dibuat" } }
+        }
       }
     },
     "/livestock-subtypes": {
       "get": {
         "tags": ["Master Data (Livestock Taxonomy)"],
-        "summary": "Daftar Sub-jenis Ternak (Petelur / Pedaging)",
-        "parameters": [{ "name": "type_id", "in": "query", "schema": { "type": "string" } }],
-        "responses": { "200": { "description": "Daftar sub-jenis ternak" } }
+        "summary": "Daftar Sub-jenis / Ras Ternak (misal: Limousin, Simental, PO)",
+        "parameters": [
+          { "name": "type_id", "in": "query", "schema": { "type": "string" }, "description": "Filter berdasarkan ID Jenis Ternak" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daftar sub-jenis / ras ternak",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Livestock subtypes retrieved" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "1" },
+                          "livestock_type_id": { "type": "string", "example": "1" },
+                          "name": { "type": "string", "example": "Limousin" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/validations": {
       "get": {
         "tags": ["Data Validations"],
-        "summary": "Daftar Histori Validasi Data Survey",
+        "summary": "Daftar Histori Validasi Data Survey Lapangan",
         "security": [{ "BearerAuth": [] }],
         "parameters": [
           { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["pending", "valid", "rejected"] } },
-          { "name": "entity_type", "in": "query", "schema": { "type": "string", "enum": ["farm", "livestock"] } }
+          { "name": "entity_type", "in": "query", "schema": { "type": "string", "enum": ["farm", "livestock"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
         ],
-        "responses": { "200": { "description": "Histori validasi data" } }
+        "responses": {
+          "200": {
+            "description": "Histori validasi data survey",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Validations retrieved successfully" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/ValidationRecord" } },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
         "tags": ["Data Validations"],
@@ -600,13 +1537,29 @@
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationInput" } } }
         },
-        "responses": { "201": { "description": "Catatan validasi berhasil dibuat" } }
+        "responses": {
+          "201": {
+            "description": "Catatan validasi berhasil dibuat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Validation record created" },
+                    "data": { "$ref": "#/components/schemas/ValidationRecord" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/validations/{id}": {
       "patch": {
         "tags": ["Data Validations"],
-        "summary": "Update Status Validasi (Approve / Reject)",
+        "summary": "Update Status Validasi (Approve / Reject Data)",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
@@ -616,14 +1569,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "status": { "type": "string", "enum": ["pending", "valid", "rejected"] },
-                  "notes": { "type": "string" }
+                  "status": { "type": "string", "enum": ["pending", "valid", "rejected"], "example": "valid" },
+                  "notes": { "type": "string", "example": "Disetujui setelah diverifikasi dengan bukti foto terbaru" }
                 }
               }
             }
           }
         },
-        "responses": { "200": { "description": "Status validasi berhasil diperbarui" } }
+        "responses": {
+          "200": {
+            "description": "Status validasi berhasil diperbarui",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Validation record updated" },
+                    "data": { "$ref": "#/components/schemas/ValidationRecord" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/dashboard/summary": {
@@ -631,7 +1600,31 @@
         "tags": ["Admin Users & Summary"],
         "summary": "Ringkasan Kartu Statistik Dashboard Admin",
         "security": [{ "BearerAuth": [] }],
-        "responses": { "200": { "description": "Summary total peternakan, validasi pending, dan update terkini" } }
+        "responses": {
+          "200": {
+            "description": "Summary total peternakan, validasi pending, dan update terkini",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Admin summary retrieved" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total_farms": { "type": "integer", "example": 128 },
+                        "total_livestock_population": { "type": "integer", "example": 45800 },
+                        "pending_validations": { "type": "integer", "example": 6 },
+                        "total_admins": { "type": "integer", "example": 3 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/users": {
@@ -639,7 +1632,23 @@
         "tags": ["Admin Users & Summary"],
         "summary": "Daftar Administrator Sistem",
         "security": [{ "BearerAuth": [] }],
-        "responses": { "200": { "description": "Daftar user admin" } }
+        "responses": {
+          "200": {
+            "description": "Daftar user admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Users retrieved successfully" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/UserResponseData" } }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
         "tags": ["Admin Users & Summary"],
@@ -654,14 +1663,15 @@
                 "required": ["name", "email", "password"],
                 "properties": {
                   "name": { "type": "string", "example": "Operator Survey" },
-                  "email": { "type": "string", "example": "operator@panganspasial.id" },
-                  "password": { "type": "string", "example": "Operator#2026" }
+                  "email": { "type": "string", "format": "email", "example": "operator@panganspasial.id" },
+                  "password": { "type": "string", "format": "password", "example": "Operator#2026" },
+                  "role_id": { "type": "integer", "example": 2 }
                 }
               }
             }
           }
         },
-        "responses": { "201": { "description": "User berhasil dibuat" } }
+        "responses": { "201": { "description": "User admin berhasil dibuat" } }
       }
     },
     "/admin/users/{id}": {
@@ -670,6 +1680,22 @@
         "summary": "Update Akun User Admin",
         "security": [{ "BearerAuth": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string" },
+                  "password": { "type": "string" },
+                  "is_active": { "type": "boolean" },
+                  "role_id": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
         "responses": { "200": { "description": "Akun berhasil diupdate" } }
       },
       "delete": {

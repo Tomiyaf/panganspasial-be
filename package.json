@@ -10,6 +10,7 @@
     "test:watch": "vitest",
     "seed": "node prisma/seed.js",
     "import:gpkg": "node src/utils/gpkgImporter.js",
+    "db:reset": "prisma migrate reset --force && npm run seed && npm run import:gpkg",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
