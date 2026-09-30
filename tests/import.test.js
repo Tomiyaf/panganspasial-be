@@ -39,4 +39,13 @@ describe("Milestone B — Database Data & GPKG Regression Tests (TASK-014, TASK-
     expect(types).toBeGreaterThanOrEqual(3);
     expect(subtypes).toBeGreaterThanOrEqual(2);
   });
+
+  it("should have all 14 village boundaries with valid PostGIS MultiPolygon geometry", async () => {
+    const validVillages = await prisma.$queryRaw`
+      SELECT COUNT(*) as count 
+      FROM villages 
+      WHERE geom IS NOT NULL AND ST_IsValid(geom) AND ST_SRID(geom) = 4326;
+    `;
+    expect(Number(validVillages[0].count)).toBe(14);
+  });
 });
