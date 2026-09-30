@@ -44,6 +44,19 @@ describe("Milestone D, E, F — WebGIS Spatial, Statistics, SDSS & Documentation
       expect(res.body.features.length).toBeGreaterThanOrEqual(9);
     });
 
+    it("GET /api/spatial/villages should return village boundary polygon features", async () => {
+      const res = await request(app).get("/api/spatial/villages");
+      expect(res.status).toBe(200);
+      expect(res.body.type).toBe("FeatureCollection");
+      expect(res.body.features.length).toBeGreaterThanOrEqual(14);
+
+      const featuresWithGeom = res.body.features.filter((f) => f.geometry !== null);
+      expect(featuresWithGeom.length).toBe(14);
+      expect(featuresWithGeom[0].geometry.type).toBe("MultiPolygon");
+      expect(featuresWithGeom[0].properties.name).toBeDefined();
+      expect(featuresWithGeom[0].properties.district_name).toBeDefined();
+    });
+
     it("GET /api/heatmap should return weighted coordinates for Leaflet Heatmap", async () => {
       const res = await request(app).get("/api/heatmap");
       expect(res.status).toBe(200);
