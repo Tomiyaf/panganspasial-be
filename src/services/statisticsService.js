@@ -10,9 +10,10 @@ export class StatisticsService {
     if (farm_category_id) whereFarm.farm_category_id = BigInt(farm_category_id);
     if (farm_scale_id) whereFarm.farm_scale_id = BigInt(farm_scale_id);
 
-    const [totalFarms, totalDistricts, totalTypes, livestockAgg] = await Promise.all([
+    const [totalFarms, totalDistricts, totalVillages, totalTypes, livestockAgg] = await Promise.all([
       prisma.farm.count({ where: whereFarm }),
       prisma.district.count(),
+      prisma.village.count(),
       prisma.livestockType.count(),
       prisma.livestock.aggregate({
         _sum: { population: true },
@@ -51,6 +52,7 @@ export class StatisticsService {
         total_farms: totalFarms,
         total_livestock_population: totalPopulation,
         total_districts: totalDistricts,
+        total_villages: totalVillages,
         total_livestock_types: totalTypes,
       },
       category_distribution: categoryDistribution.map((c) => ({
