@@ -1,6 +1,7 @@
 import "dotenv/config";
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 import prisma from "../lib/prisma.js";
 
 const DISTRICTS_DATA = [
@@ -17,6 +18,20 @@ const DISTRICTS_DATA = [
 
 export async function importGpkgData() {
   console.log("🚜 Starting GPKG Import Pipeline...");
+
+  // 0. Extract Boundary Data if GPKG exists
+  const boundaryGpkgPath = path.resolve(process.cwd(), "peternakan_bataswilayah.gpkg");
+  const boundaryJsonPath = path.resolve(process.cwd(), "gpkg_boundaries.json");
+  const extractScriptPath = path.resolve(process.cwd(), "scripts/extract_boundaries.py");
+
+  if (fs.existsSync(boundaryGpkgPath) && fs.existsSync(extractScriptPath)) {
+    console.log("-> Running boundary extractor (Python)...");
+    try {
+      execSync(`python "${extractScriptPath}"`, { stdio: "inherit" });
+    } catch (err) {
+      console.warn("⚠️ Warning: Failed to run boundary extractor script automatically, checking existing json...", err.message);
+    }
+  }
 
   const dataFilePath = path.resolve(process.cwd(), "gpkg_data.json");
   if (!fs.existsSync(dataFilePath)) {
@@ -40,7 +55,73 @@ export async function importGpkgData() {
     districtMap.set(d.name.toLowerCase(), district.id);
   }
 
-  // 2. Cache Master Data
+  // 2. Import Village Boundaries (TASK: Batas Wilayah Desa)
+  let importedBoundariesCount = 0;
+  if (fs.existsSync(boundaryJsonPath)) {
+    console.log("-> Importing Village Boundaries (MultiPolygon PostGIS)...");
+    const boundaries = JSON.parse(fs.readFileSync(boundaryJsonPath, "utf8"));
+
+    for (const b of boundaries) {
+      const dName = b.district ? b.district.toLowerCase() : "adiluwih";
+      const districtId = districtMap.get(dName) || districtMap.get("adiluwih");
+
+      // Normalize village name
+      let vName = b.name.trim();
+      if (vName.toLowerCase() === "kita waringin" || vName.toLowerCase() === "kutawaringin") {
+        vName = "Kuta Waringin";
+      } else if (vName.toLowerCase() === "totokarto") {
+        vName = "Totokarto";
+      }
+
+      const village = await prisma.village.upsert({
+        where: {
+          district_id_name: {
+            district_id: districtId,
+            name: vName,
+          },
+        },
+        update: {
+          code: b.code || undefined,
+        },
+        create: {
+          district_id: districtId,
+          name: vName,
+          code: b.code || null,
+        },
+      });
+
+      // Update PostGIS spatial MultiPolygon geometry from WKB Hex
+      if (b.wkb_hex) {
+        await prisma.$executeRaw`
+          UPDATE villages
+          SET geom = ST_Force2D(ST_Multi(ST_CurveToLine(ST_SetSRID(ST_GeomFromWKB(decode(${b.wkb_hex}, 'hex')), 4326)))),
+              code = COALESCE(${b.code}, code),
+              updated_at = NOW()
+          WHERE id = ${village.id}
+        `;
+        importedBoundariesCount++;
+      }
+    }
+    console.log(`   ✓ ${importedBoundariesCount} Village boundaries successfully imported with PostGIS MultiPolygons.`);
+
+    // 2.1 Update District Boundaries by aggregating village polygons (ST_Union)
+    console.log("-> Aggregating District boundaries from village polygons...");
+    await prisma.$executeRaw`
+      UPDATE districts d
+      SET geom = sub.unified_geom,
+          updated_at = NOW()
+      FROM (
+        SELECT district_id, ST_Multi(ST_Union(geom)) as unified_geom
+        FROM villages
+        WHERE geom IS NOT NULL
+        GROUP BY district_id
+      ) sub
+      WHERE d.id = sub.district_id;
+    `;
+    console.log("   ✓ District boundary geometries aggregated successfully.");
+  }
+
+  // 3. Cache Master Data
   const categories = await prisma.farmCategory.findMany();
   const categoryMap = new Map(categories.map((c) => [c.name.toLowerCase(), c.id]));
 
@@ -58,7 +139,7 @@ export async function importGpkgData() {
 
   // Helper to detect district from address
   const detectDistrictId = (address) => {
-    if (!address) return districtMap.get("adiluwih"); // default based on GPKG cluster
+    if (!address) return districtMap.get("adiluwih");
     const addr = address.toLowerCase();
     for (const [name, id] of districtMap.entries()) {
       if (addr.includes(name)) return id;
@@ -72,17 +153,28 @@ export async function importGpkgData() {
     if (!address) return null;
     let villageName = null;
 
-    // Detect common village names in Pringsewu GPKG
     const knownVillages = [
       "Srikaton", "Kuta Waringin", "Kita Waringin", "Kutawaringin",
       "TotoKarto", "Totokarto", "Bandung Baru", "Tunggul Pawenang",
-      "Enggalrejo", "Waringinsari Timur", "Adiluwih", "Pringgodani",
-      "Sukoharjo", "Sinar Baru", "Podomoro", "Podosari"
+      "Enggalrejo", "Enggal Rejo", "Waringinsari Timur", "Waringin Sari Timur",
+      "Waringinsari Barat", "Adiluwih", "Pringgodani", "Sukoharjo", "Sinar Baru",
+      "Purwodadi", "Sinarwayah", "Sukoharum", "Tri Tunggal Mulya",
+      "Bandung Baru Barat", "Podomoro", "Podosari"
     ];
 
     for (const v of knownVillages) {
       if (address.toLowerCase().includes(v.toLowerCase())) {
-        villageName = v === "Kita Waringin" ? "Kuta Waringin" : (v === "Totokarto" ? "TotoKarto" : v);
+        if (v.toLowerCase() === "kita waringin" || v.toLowerCase() === "kutawaringin") {
+          villageName = "Kuta Waringin";
+        } else if (v.toLowerCase() === "totokarto") {
+          villageName = "Totokarto";
+        } else if (v.toLowerCase() === "enggalrejo") {
+          villageName = "Enggal Rejo";
+        } else if (v.toLowerCase() === "waringinsari timur") {
+          villageName = "Waringin Sari Timur";
+        } else {
+          villageName = v;
+        }
         break;
       }
     }
@@ -110,9 +202,9 @@ export async function importGpkgData() {
     return village.id;
   };
 
-  // 3. Import Farms (TASK-013)
+  // 4. Import Farms (TASK-013)
   console.log("-> Importing Farms...");
-  const farmIdMapping = new Map(); // source_farm_id -> db.id
+  const farmIdMapping = new Map();
 
   for (const f of farms) {
     const districtId = detectDistrictId(f.address);
@@ -164,7 +256,20 @@ export async function importGpkgData() {
   }
   console.log(`   ✓ ${farms.length} Farms imported and geometries updated.`);
 
-  // 4. Import Livestock (TASK-013)
+  // 4.1 PostGIS Spatial Intersect: Match Farms into enclosing Village Boundaries
+  console.log("-> Performing PostGIS Spatial Containment Matching for Farms...");
+  await prisma.$executeRaw`
+    UPDATE farms f
+    SET village_id = v.id,
+        district_id = v.district_id
+    FROM villages v
+    WHERE f.geom IS NOT NULL 
+      AND v.geom IS NOT NULL 
+      AND ST_Within(f.geom, v.geom);
+  `;
+  console.log("   ✓ Spatial containment matching completed.");
+
+  // 5. Import Livestock (TASK-013)
   console.log("-> Importing Livestock...");
   for (const l of livestock) {
     const dbFarmId = farmIdMapping.get(Number(l.farm_id));
@@ -203,12 +308,15 @@ export async function importGpkgData() {
   }
   console.log(`   ✓ ${livestock.length} Livestock imported.`);
 
-  // 5. Validation Check (TASK-014)
-  console.log("-> Running Post-Import Integrity Validations (TASK-014)...");
+  // 6. Validation Check (TASK-014 & Batas Wilayah Integrity)
+  console.log("-> Running Post-Import Integrity Validations...");
   const totalFarms = await prisma.farm.count();
   const totalLivestock = await prisma.livestock.count();
   const geomCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM farms WHERE geom IS NOT NULL;`;
   const validGeomCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM farms WHERE ST_IsValid(geom);`;
+  const villageGeomCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM villages WHERE geom IS NOT NULL;`;
+  const validVillageGeomCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM villages WHERE geom IS NOT NULL AND ST_IsValid(geom);`;
+  const districtGeomCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM districts WHERE geom IS NOT NULL;`;
   const orphanCheck = await prisma.$queryRaw`
     SELECT COUNT(*) as count 
     FROM livestock l 
@@ -219,11 +327,14 @@ export async function importGpkgData() {
   console.log("\n=========================================");
   console.log("🏆 GPKG IMPORT SUMMARY & VERIFICATION");
   console.log("=========================================");
-  console.log(`• Total Farms in DB:          ${totalFarms} (Expected: 40)`);
-  console.log(`• Total Livestock in DB:      ${totalLivestock} (Expected: 41)`);
-  console.log(`• Farms with Geometry:        ${geomCount[0].count} / 40`);
-  console.log(`• Valid PostGIS Geometries:   ${validGeomCount[0].count} / 40`);
-  console.log(`• Orphan Livestock Records:   ${orphanCheck[0].count} (Expected: 0)`);
+  console.log(`• Total Farms in DB:            ${totalFarms} (Expected: 40)`);
+  console.log(`• Total Livestock in DB:        ${totalLivestock} (Expected: 41)`);
+  console.log(`• Farms with Geometry:          ${geomCount[0].count} / 40`);
+  console.log(`• Valid PostGIS Farm Geoms:     ${validGeomCount[0].count} / 40`);
+  console.log(`• Village Boundaries in DB:     ${villageGeomCount[0].count} (Expected: 14)`);
+  console.log(`• Valid Village MultiPolygons:  ${validVillageGeomCount[0].count} (Expected: 14)`);
+  console.log(`• Districts with Boundary Geom: ${districtGeomCount[0].count}`);
+  console.log(`• Orphan Livestock Records:     ${orphanCheck[0].count} (Expected: 0)`);
   console.log("=========================================\n");
 
   if (totalFarms !== 40 || totalLivestock !== 41 || Number(orphanCheck[0].count) !== 0) {
